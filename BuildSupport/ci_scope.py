@@ -30,6 +30,40 @@ def _git_lines(repository: Path, *arguments: str) -> set[str]:
     return {line for line in result.stdout.splitlines() if line}
 
 
+def _default_upstream(repository: Path) -> str | None:
+    """Return the upstream/default branch if a remote branch is available."""
+    for command in (
+        ("git", "symbolic-ref", "--quiet", "--short", "refs/remotes/origin/HEAD"),
+        ("git", "rev-parse", "--abbrev-ref", "--symbolic-full-name", "@{upstream}"),
+    ):
+        result = subprocess.run(
+            command,
+            cwd=repository,
+            check=False,
+            capture_output=True,
+            text=True,
+        )
+        if result.returncode == 0:
+            value = result.stdout.strip()
+            if value:
+                return value.removeprefix("origin/")
+
+    remote_show = subprocess.run(
+        ("git", "remote", "show", "origin"),
+        cwd=repository,
+        check=False,
+        capture_output=True,
+        text=True,
+    )
+    if remote_show.returncode == 0:
+        for line in remote_show.stdout.splitlines():
+            stripped = line.strip()
+            if stripped.startswith("HEAD branch:"):
+                return stripped.split(":", 1)[1].strip()
+
+    return None
+
+
 def changed_paths(repository: Path) -> set[str]:
     """Return committed, staged, unstaged, and untracked local changes."""
     paths = _git_lines(
@@ -41,20 +75,14 @@ def changed_paths(repository: Path) -> set[str]:
     )
     paths |= _git_lines(repository, "ls-files", "--others", "--exclude-standard")
 
-    upstream = subprocess.run(
-        ("git", "rev-parse", "--abbrev-ref", "--symbolic-full-name", "@{upstream}"),
-        cwd=repository,
-        check=False,
-        capture_output=True,
-        text=True,
-    )
-    if upstream.returncode == 0:
+    upstream = _default_upstream(repository)
+    if upstream is not None:
         paths |= _git_lines(
             repository,
             "diff",
             "--name-only",
             "--diff-filter=ACMRTUXB",
-            f"{upstream.stdout.strip()}...HEAD",
+            f"{upstream}...HEAD",
         )
 
     return paths
