@@ -14,7 +14,7 @@ jobs:
   build-ipa:
     if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository
     name: Build DeviceHub IPA
-    runs-on: macos-15
+    runs-on: macos-latest
     timeout-minutes: 90
 
     env:
