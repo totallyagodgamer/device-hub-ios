@@ -38,7 +38,7 @@ jobs:
           xcodebuild -version
 
       - name: Set up mise
-        uses: jdx/mise-action@v2
+        uses: jdx/mise-action@v5
         with:
           version: latest
 
