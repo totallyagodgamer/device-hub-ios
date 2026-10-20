@@ -28,7 +28,7 @@ jobs:
       - name: Checkout shared iOS build support
         uses: actions/checkout@v4
         with:
-          repository: JaviSoto/ios-build-support
+          repository: totallyagodgamer/ios-build-support
           path: .ci/ios-build-support
           fetch-depth: 1
 
