@@ -1,0 +1,92 @@
+name: Build DeviceHub IPA
+
+on:
+  workflow_dispatch:
+  push:
+    branches: ["main"]
+  pull_request:
+    branches: ["main"]
+
+jobs:
+  build-ipa:
+    name: Build DeviceHub IPA
+    runs-on: macos-15
+    timeout-minutes: 90
+
+    env:
+      DEVELOPER_DIR: /Applications/Xcode_27.1.app/Contents/Developer
+      SHARED_IOS_SUPPORT_DIR: ${{ github.workspace }}/.ci/ios-build-support
+      APP_BUNDLE_ID: ${{ vars.APP_BUNDLE_ID || 'es.javisoto.DeviceHub' }}
+
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@v4
+
+      - name: Checkout shared iOS build support
+        uses: actions/checkout@v4
+        with:
+          repository: JaviSoto/ios-build-support
+          path: .ci/ios-build-support
+          fetch-depth: 1
+
+      - name: Set up Xcode 27.1
+        uses: maxim-lobanov/setup-xcode@v1
+        with:
+          xcode-version: "27.1"
+
+      - name: Set up mise
+        uses: jdx/mise-action@v2
+        with:
+          version: latest
+
+      - name: Install repo toolchain
+        run: mise install
+
+      - name: Generate Xcode project
+        run: mise run generate
+
+      - name: Build the Rust protocol XCFramework
+        run: ./Scripts/build-protocol-xcframework.sh
+
+      - name: Archive app (unsigned)
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          xcodebuild archive \
+            -project DeviceHub.xcodeproj \
+            -scheme DeviceHub \
+            -configuration Release \
+            -sdk iphoneos \
+            -destination 'generic/platform=iOS' \
+            -archivePath "$RUNNER_TEMP/DeviceHub.xcarchive" \
+            -derivedDataPath "$RUNNER_TEMP/DerivedData/DeviceHub" \
+            -skipMacroValidation \
+            CODE_SIGNING_ALLOWED=NO \
+            CODE_SIGN_STYLE=Automatic
+
+      - name: Package unsigned IPA
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          APP_PATH="$(find "$RUNNER_TEMP/DerivedData/DeviceHub/Build/Products/Release-iphoneos" -name "DeviceHub.app" -print -quit)"
+
+          if [[ -z "$APP_PATH" ]]; then
+            APP_PATH="$(find "$RUNNER_TEMP/DeviceHub.xcarchive/Products/Applications" -name "DeviceHub.app" -print -quit)"
+          fi
+
+          if [[ -z "$APP_PATH" ]]; then
+            echo "Could not find built DeviceHub.app" >&2
+            exit 1
+          fi
+
+          mkdir -p "$RUNNER_TEMP/DeviceHubExport"
+          ditto -c -k --keepParent "$APP_PATH" "$RUNNER_TEMP/DeviceHubExport/DeviceHub-unsigned.ipa"
+
+      - name: Upload IPA artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: DeviceHub-ipa
+          path: ${{ runner.temp }}/DeviceHubExport/*.ipa
+          if-no-files-found: error
