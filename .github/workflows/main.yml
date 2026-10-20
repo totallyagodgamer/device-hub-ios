@@ -73,14 +73,11 @@ jobs:
         run: |
           set -euo pipefail
 
-          APP_PATH="$(find "$RUNNER_TEMP/DerivedData/DeviceHub/Build/Products/Release-iphoneos" -name "DeviceHub.app" -print -quit)"
+          APP_PATH="$(find "$RUNNER_TEMP" -path '*/DeviceHub.app' -print -quit)"
 
           if [[ -z "$APP_PATH" ]]; then
-            APP_PATH="$(find "$RUNNER_TEMP/DeviceHub.xcarchive/Products/Applications" -name "DeviceHub.app" -print -quit)"
-          fi
-
-          if [[ -z "$APP_PATH" ]]; then
-            echo "Could not find built DeviceHub.app" >&2
+            echo "Could not find built DeviceHub.app under $RUNNER_TEMP" >&2
+            find "$RUNNER_TEMP" -maxdepth 6 -print 2>/dev/null | head -200 >&2 || true
             exit 1
           fi
 
