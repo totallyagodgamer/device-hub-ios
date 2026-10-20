@@ -7,14 +7,17 @@ on:
   pull_request:
     branches: ["main"]
 
+permissions:
+  contents: read
+
 jobs:
   build-ipa:
+    if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository
     name: Build DeviceHub IPA
     runs-on: macos-15
     timeout-minutes: 90
 
     env:
-      DEVELOPER_DIR: /Applications/Xcode_27.1.app/Contents/Developer
       SHARED_IOS_SUPPORT_DIR: ${{ github.workspace }}/.ci/ios-build-support
       APP_BUNDLE_ID: ${{ vars.APP_BUNDLE_ID || 'es.javisoto.DeviceHub' }}
 
@@ -33,6 +36,13 @@ jobs:
         uses: maxim-lobanov/setup-xcode@v1
         with:
           xcode-version: "27.1"
+
+      - name: Verify selected Xcode
+        shell: bash
+        run: |
+          set -euo pipefail
+          echo "Selected Xcode path: $(xcode-select -p)"
+          xcodebuild -version
 
       - name: Set up mise
         uses: jdx/mise-action@v2
